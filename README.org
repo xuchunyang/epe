@@ -1,0 +1,69 @@
+* Bring some Entry Points to Emacs
+
+假设在 Mac OS X 下运行 GUI 的 Emacs，且 server 模式已开启。
+
+** 从终端进入 Magit
+
+利用一个 shell 函数：
+
+#+BEGIN_SRC shell
+  magit () {
+      emacsclient --eval "(call-interactively #'magit-status)"
+      open -a Emacs
+  }
+#+END_SRC
+
+** 用 Alfred 切换 buffer
+
+收集 buffer list，去掉 mini buffers：
+
+#+BEGIN_SRC emacs-lisp
+  (defun epe-buffer-list ()
+    (cl-remove-if (lambda (name)
+                    (string-prefix-p " " name))
+                  (mapcar #'buffer-name (buffer-list))))
+#+END_SRC
+
+在 Alfred 中制作一个 [[https://www.alfredapp.com/help/workflows/inputs/script-filter/][Script Filter Input]]，把 ~epe-buffer-list~ 的输出转换成 XML：
+
+#+BEGIN_SRC ruby
+  #!/usr/bin/env ruby
+
+  require 'gyoku'
+
+  hash = {
+    xml: {
+      items: {
+        item: []
+      }
+    }
+  }
+
+  buffers = `emacsclient -e "(epe-buffer-list)"`
+
+  buffers.scan(/"(.+?)"/) do |w|
+    item = {
+      :title => w[0],
+      :@arg => w[0]
+    }
+
+    hash[:xml][:items][:item] << item
+  end
+
+  xml = Gyoku.xml(hash)
+  puts xml
+
+  # Local Variables:
+  # eval: (define-key (current-local-map) (kbd "C-c C-u") (function ruby-send-buffer))
+  # End:
+#+END_SRC
+
+最后在 Alfred 中制作一个 [[https://www.alfredapp.com/help/workflows/actions/run-script/][Run Script Action]]：用来切换 buffer、激活 Emacs：
+
+#+BEGIN_SRC shell
+query="{query}"
+
+emacsclient -e "(switch-to-buffer \"$query\")"
+
+open -a Emacs
+#+END_SRC
